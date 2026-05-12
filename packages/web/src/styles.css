@@ -571,6 +571,27 @@ button {
   line-height: 1.5;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  row-gap: 10px;
+  column-gap: 18px;
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
+.profile-grid dt {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.profile-grid dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
 /* ============================================================
  * Drawer mode (viewport < 1024px): sidebar overlays the page.
  * Docked mode is the default — sidebar is a flex child of

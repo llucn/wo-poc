@@ -1,5 +1,6 @@
 import { AvatarMenu } from './avatar-menu';
 import { ThemeToggle } from './theme-toggle';
+import { useAuthUser } from '../../app/auth/use-auth-user';
 
 type Props = {
   isNarrow: boolean;
@@ -8,6 +9,7 @@ type Props = {
 };
 
 export function Topbar({ isNarrow, sidebarOpen, onToggleSidebar }: Props) {
+  const { name } = useAuthUser();
   return (
     <header className="topbar">
       {isNarrow && (
@@ -25,7 +27,7 @@ export function Topbar({ isNarrow, sidebarOpen, onToggleSidebar }: Props) {
       <div className="topbar-spacer" />
       <div className="topbar-actions">
         <ThemeToggle />
-        <span className="topbar-username">Demo User</span>
+        <span className="topbar-username">{name}</span>
         <AvatarMenu />
       </div>
     </header>
