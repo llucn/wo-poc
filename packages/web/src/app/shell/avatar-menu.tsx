@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAuth } from 'react-oidc-context';
+import { useNavigate } from 'react-router-dom';
+import { signOut } from '../../app/auth/auth-actions';
+import { useAuthUser } from '../../app/auth/use-auth-user';
 
 export function AvatarMenu() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const { name, email, initials } = useAuthUser();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -15,6 +22,16 @@ export function AvatarMenu() {
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, [open]);
 
+  const handleProfile = () => {
+    setOpen(false);
+    navigate('/profile');
+  };
+
+  const handleLogout = () => {
+    setOpen(false);
+    void signOut(auth);
+  };
+
   return (
     <div className="topbar-avatar-wrapper" ref={wrapperRef}>
       <button
@@ -25,19 +42,19 @@ export function AvatarMenu() {
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
       >
-        DU
+        {initials}
       </button>
       {open && (
         <div className="avatar-dropdown" role="menu">
           <div className="avatar-dropdown-info">
-            <strong>Demo User</strong>
-            demo@example.com
+            <strong>{name}</strong>
+            {email ?? ''}
           </div>
           <button
             type="button"
             className="avatar-dropdown-item"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={handleProfile}
           >
             Profile
           </button>
@@ -45,7 +62,7 @@ export function AvatarMenu() {
             type="button"
             className="avatar-dropdown-item"
             role="menuitem"
-            onClick={() => setOpen(false)}
+            onClick={handleLogout}
           >
             Logout
           </button>

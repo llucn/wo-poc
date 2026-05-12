@@ -36,11 +36,15 @@
   ],
   "dependencies": {
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "aws-jwt-verify": "^5.1.1",
     "axios": "^1.6.0",
+    "oidc-client-ts": "^3.5.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
+    "react-oidc-context": "^3.3.1",
     "react-router-dom": "6.29.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"

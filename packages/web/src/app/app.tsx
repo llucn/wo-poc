@@ -1,25 +1,30 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { RequireAuth } from './auth/require-auth';
 import { DemoPage } from './pages/demo-page';
+import { ProfilePage } from './pages/profile-page';
 import { AppShell } from './shell/app-shell';
 
 export function App() {
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard/overview" replace />} />
-        <Route path="/dashboard/overview" element={<DemoPage title="Overview" />} />
-        <Route path="/dashboard/activity" element={<DemoPage title="Activity" />} />
-        <Route path="/work-orders/all" element={<DemoPage title="All Orders" />} />
-        <Route path="/work-orders/create" element={<DemoPage title="Create Order" />} />
-        <Route path="/assets/equipment" element={<DemoPage title="Equipment" />} />
-        <Route path="/assets/locations" element={<DemoPage title="Locations" />} />
-        <Route path="/maintenance/schedules" element={<DemoPage title="Schedules" />} />
-        <Route path="/maintenance/history" element={<DemoPage title="History" />} />
-        <Route path="/settings/profile" element={<DemoPage title="Profile" />} />
-        <Route path="/settings/preferences" element={<DemoPage title="Preferences" />} />
-        <Route path="*" element={<DemoPage title="Not Found" />} />
-      </Routes>
-    </AppShell>
+    <RequireAuth>
+      <AppShell>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard/overview" replace />} />
+          <Route path="/dashboard/overview" element={<DemoPage title="Overview" />} />
+          <Route path="/dashboard/activity" element={<DemoPage title="Activity" />} />
+          <Route path="/work-orders/all" element={<DemoPage title="All Orders" />} />
+          <Route path="/work-orders/create" element={<DemoPage title="Create Order" />} />
+          <Route path="/assets/equipment" element={<DemoPage title="Equipment" />} />
+          <Route path="/assets/locations" element={<DemoPage title="Locations" />} />
+          <Route path="/maintenance/schedules" element={<DemoPage title="Schedules" />} />
+          <Route path="/maintenance/history" element={<DemoPage title="History" />} />
+          <Route path="/settings/profile" element={<DemoPage title="Profile" />} />
+          <Route path="/settings/preferences" element={<DemoPage title="Preferences" />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="*" element={<DemoPage title="Not Found" />} />
+        </Routes>
+      </AppShell>
+    </RequireAuth>
   );
 }
 
