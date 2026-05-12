@@ -7,9 +7,6 @@
       "path": "./packages/web"
     },
     {
-      "path": "./packages/api-e2e"
-    },
-    {
       "path": "./packages/api"
     }
   ]

@@ -1,45 +1,26 @@
-// Uncomment this line to use CSS modules
-// import styles from './app.module.css';
-import NxWelcome from "./nx-welcome";
-
-import { Route, Routes, Link } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { DemoPage } from './pages/demo-page';
+import { AppShell } from './shell/app-shell';
 
 export function App() {
   return (
-    <div>
-      <NxWelcome title="@wo-poc/web"/>
-    
-    {/* START: routes */}
-    {/* These routes and navigation have been generated for you */}
-    {/* Feel free to move and update them to fit your needs */}
-    <br/>
-    <hr/>
-    <br/>
-    <div role="navigation">
-      <ul>
-        <li><Link to="/">Home</Link></li>
-        <li><Link to="/page-2">Page 2</Link></li>
-      </ul>
-    </div>
-    <Routes>
-      <Route
-        path="/"
-        element={
-          <div>This is the generated root route. <Link to="/page-2">Click here for page 2.</Link></div>
-        }
-      />
-      <Route
-        path="/page-2"
-        element={
-          <div><Link to="/">Click here to go back to root page.</Link></div>
-        }
-      />
-    </Routes>
-    {/* END: routes */}
-    </div>
+    <AppShell>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard/overview" replace />} />
+        <Route path="/dashboard/overview" element={<DemoPage title="Overview" />} />
+        <Route path="/dashboard/activity" element={<DemoPage title="Activity" />} />
+        <Route path="/work-orders/all" element={<DemoPage title="All Orders" />} />
+        <Route path="/work-orders/create" element={<DemoPage title="Create Order" />} />
+        <Route path="/assets/equipment" element={<DemoPage title="Equipment" />} />
+        <Route path="/assets/locations" element={<DemoPage title="Locations" />} />
+        <Route path="/maintenance/schedules" element={<DemoPage title="Schedules" />} />
+        <Route path="/maintenance/history" element={<DemoPage title="History" />} />
+        <Route path="/settings/profile" element={<DemoPage title="Profile" />} />
+        <Route path="/settings/preferences" element={<DemoPage title="Preferences" />} />
+        <Route path="*" element={<DemoPage title="Not Found" />} />
+      </Routes>
+    </AppShell>
   );
 }
 
 export default App;
-
-
