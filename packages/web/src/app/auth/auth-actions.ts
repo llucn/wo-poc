@@ -1,20 +1,29 @@
 import type { AuthContextProps } from 'react-oidc-context';
 import { buildLogoutUrl } from './oidc-config';
 
-export async function signOut(auth: AuthContextProps): Promise<void> {
-  // Resolve the logout URL BEFORE touching local auth state. Awaiting
-  // anything *after* removeUser() lets React commit the unauthenticated
-  // state and lets RequireAuth's effect call signinRedirect(), whose
-  // navigation cancels ours — that is the "canceled" /logout request
-  // visible in DevTools.
-  const logoutUrl = await buildLogoutUrl();
+let signingOut = false;
 
-  // Fire-and-forget the local clear: removeUser() synchronously wipes the
-  // oidc-client-ts sessionStorage entry but its returned promise resolves
-  // a microtask later (after firing the userUnloaded event that toggles
-  // the auth context to !isAuthenticated). We intentionally do NOT await,
-  // so location.assign runs in the same synchronous tick and the browser
-  // navigation wins the race against React's next render.
-  void auth.removeUser();
-  window.location.assign(logoutUrl);
+export function isSigningOut(): boolean {
+  return signingOut;
+}
+
+export async function signOut(auth: AuthContextProps): Promise<void> {
+  // Mark logout in-flight BEFORE any state change. removeUser() fires
+  // userUnloaded in a microtask, which flips isAuthenticated to false
+  // and makes RequireAuth's effect call signinRedirect() — whose own
+  // location.assign(authorize_url) preempts ours to Cognito /logout
+  // (that is the "canceled" /logout request seen in DevTools). The flag
+  // is read by RequireAuth to skip the auto-redirect during this window.
+  // location.assign() only queues navigation for end-of-task, so the
+  // microtask chain from removeUser() runs before the browser actually
+  // commits — ordering alone can't win this race; the guard must.
+  signingOut = true;
+  try {
+    const logoutUrl = await buildLogoutUrl();
+    void auth.removeUser();
+    window.location.assign(logoutUrl);
+  } catch (err) {
+    signingOut = false;
+    throw err;
+  }
 }
