@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { RequireAuth } from './auth/require-auth';
+import { RequireRole } from './auth/require-role';
 import { DemoPage } from './pages/demo-page';
+import { IssueCategoryAddPage } from './pages/issue-category/add-page';
+import { IssueCategoryListPage } from './pages/issue-category/list-page';
 import { ProfilePage } from './pages/profile-page';
 import { AppShell } from './shell/app-shell';
 
@@ -18,6 +21,22 @@ export function App() {
           <Route path="/assets/locations" element={<DemoPage title="Locations" />} />
           <Route path="/maintenance/schedules" element={<DemoPage title="Schedules" />} />
           <Route path="/maintenance/history" element={<DemoPage title="History" />} />
+          <Route
+            path="/settings/issue-category"
+            element={
+              <RequireRole role="ADMIN">
+                <IssueCategoryListPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/issue-category/new"
+            element={
+              <RequireRole role="ADMIN">
+                <IssueCategoryAddPage />
+              </RequireRole>
+            }
+          />
           <Route path="/settings/profile" element={<DemoPage title="Profile" />} />
           <Route path="/settings/preferences" element={<DemoPage title="Preferences" />} />
           <Route path="/profile" element={<ProfilePage />} />

@@ -64,6 +64,7 @@ export class JwtAuthGuard implements CanActivate {
         (idClaims['cognito:username'] as string),
       phoneNumber: (idClaims.phone_number as string | undefined) ?? null,
       email: (idClaims.email as string | undefined) ?? null,
+      groups: (accessClaims['cognito:groups'] as string[] | undefined) ?? [],
       accessClaims,
       idClaims,
     };

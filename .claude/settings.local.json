@@ -2,7 +2,22 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(npx nx *)"
+      "Bash(npx nx *)",
+      "Bash(openspec --version)",
+      "Bash(openspec new *)",
+      "Bash(openspec status *)",
+      "Bash(openspec instructions *)",
+      "Bash(openspec validate *)",
+      "Bash(npm install *)",
+      "Bash(mysql --version)",
+      "Bash(brew services *)",
+      "Bash(mysqladmin ping *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"--- api exit: $? ---\")",
+      "Bash(echo \"--- web exit: $? ---\")",
+      "Bash(echo \"--- api build exit: $? ---\")",
+      "Bash(echo \"--- web build exit: $? ---\")",
+      "Bash(echo \"--- exit: $? ---\")"
     ]
   }
 }

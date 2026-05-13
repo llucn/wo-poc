@@ -3,6 +3,18 @@ import { useAuth } from 'react-oidc-context';
 
 export type ApiFetch = (path: string, init?: RequestInit) => Promise<Response>;
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly body: unknown;
+
+  constructor(status: number, statusText: string, body: unknown) {
+    super(`Request failed (${status} ${statusText})`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
 export function useApiFetch(): ApiFetch {
   const auth = useAuth();
   const accessToken = auth.user?.access_token;
@@ -20,9 +32,16 @@ export function useApiFetch(): ApiFetch {
 
       const response = await fetch(url, { ...init, headers });
       if (!response.ok) {
-        throw new Error(
-          `Request failed (${response.status} ${response.statusText})`,
-        );
+        let body: unknown = undefined;
+        const contentType = response.headers.get('content-type') ?? '';
+        if (contentType.includes('application/json')) {
+          try {
+            body = await response.clone().json();
+          } catch {
+            body = undefined;
+          }
+        }
+        throw new ApiError(response.status, response.statusText, body);
       }
       return response;
     },

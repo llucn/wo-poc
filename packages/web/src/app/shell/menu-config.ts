@@ -6,6 +6,7 @@ export type MenuItem = {
   icon?: ReactNode;
   to?: string;
   children?: MenuItem[];
+  roles?: string[];
 };
 
 export const DEMO_MENU: MenuItem[] = [
@@ -45,6 +46,7 @@ export const DEMO_MENU: MenuItem[] = [
     id: 'settings',
     label: 'Settings',
     children: [
+      { id: 'settings-issue-category', label: 'Issue Category', to: '/settings/issue-category', roles: ['ADMIN'] },
       { id: 'settings-profile', label: 'Profile', to: '/settings/profile' },
       { id: 'settings-preferences', label: 'Preferences', to: '/settings/preferences' },
     ],
