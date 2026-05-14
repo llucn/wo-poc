@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApiFetch } from '../../auth/use-api-fetch';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import type { IssueCategoryDto } from './types';
@@ -97,7 +97,9 @@ export function IssueCategoryListPage() {
           />
         </td>
         <td className="ic-col-id">#{row.id}</td>
-        <td>{row.name}</td>
+        <td>
+          <Link to={`/settings/issue-category/${row.id}`}>{row.name}</Link>
+        </td>
         <td>{row.displayName}</td>
       </tr>
     ));

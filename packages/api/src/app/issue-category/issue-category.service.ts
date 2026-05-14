@@ -1,9 +1,14 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
 import {
   CreateIssueCategoryDto,
   ExistsResponseDto,
+  UpdateIssueCategoryDto,
 } from './issue-category.dto';
 import { IssueCategoryEntity } from './issue-category.entity';
 
@@ -27,6 +32,17 @@ export class IssueCategoryService {
 
   findAll(): Promise<IssueCategoryEntity[]> {
     return this.repo.find({ order: { id: 'ASC' } });
+  }
+
+  async findById(id: number): Promise<IssueCategoryEntity> {
+    const row = await this.repo.findOne({ where: { id } });
+    if (!row) {
+      throw new NotFoundException({
+        statusCode: 404,
+        message: `Category ${id} not found`,
+      });
+    }
+    return row;
   }
 
   async existsByField(field: ConflictField, value: string): Promise<boolean> {
@@ -69,6 +85,28 @@ export class IssueCategoryService {
     }
   }
 
+  async update(
+    id: number,
+    dto: UpdateIssueCategoryDto,
+  ): Promise<IssueCategoryEntity> {
+    const row = await this.findById(id);
+    if (dto.displayName === row.displayName) {
+      return row;
+    }
+    if (await this.existsByField('displayName', dto.displayName)) {
+      throw this.duplicateConflict('displayName', dto.displayName);
+    }
+    row.displayName = dto.displayName;
+    try {
+      return await this.repo.save(row);
+    } catch (err) {
+      if (this.isDisplayNameDuplicate(err)) {
+        throw this.duplicateConflict('displayName', dto.displayName);
+      }
+      throw err;
+    }
+  }
+
   async removeMany(ids: number[]): Promise<number> {
     const result = await this.repo.delete({ id: In(ids) });
     return result.affected ?? 0;
@@ -100,5 +138,14 @@ export class IssueCategoryService {
       return { field: 'displayName', value: dto.displayName };
     }
     return null;
+  }
+
+  private isDisplayNameDuplicate(err: unknown): boolean {
+    if (!(err instanceof QueryFailedError)) return false;
+    const driverErr = (err as QueryFailedError & {
+      driverError?: { code?: string; sqlMessage?: string };
+    }).driverError;
+    if (driverErr?.code !== MYSQL_DUP_ENTRY) return false;
+    return (driverErr.sqlMessage ?? '').includes(UK_DISPLAY_NAME);
   }
 }

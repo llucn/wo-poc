@@ -4,6 +4,9 @@ import {
   Delete,
   Get,
   HttpCode,
+  Param,
+  ParseIntPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -13,6 +16,7 @@ import {
   DeleteIssueCategoriesDto,
   ExistsResponseDto,
   IssueCategoryDto,
+  UpdateIssueCategoryDto,
 } from './issue-category.dto';
 import { IssueCategoryEntity } from './issue-category.entity';
 import { IssueCategoryService } from './issue-category.service';
@@ -44,12 +48,29 @@ export class IssueCategoryController {
     return this.service.checkExists(name, displayName);
   }
 
+  @Get(':id')
+  async findOne(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<IssueCategoryDto> {
+    const row = await this.service.findById(id);
+    return toDto(row);
+  }
+
   @Post()
   async create(
     @Body() dto: CreateIssueCategoryDto,
   ): Promise<IssueCategoryDto> {
     const created = await this.service.create(dto);
     return toDto(created);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateIssueCategoryDto,
+  ): Promise<IssueCategoryDto> {
+    const updated = await this.service.update(id, dto);
+    return toDto(updated);
   }
 
   @Delete()

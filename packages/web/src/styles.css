@@ -623,6 +623,32 @@ button {
   gap: 8px;
 }
 
+.ic-page-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ic-back-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.ic-back-btn:hover {
+  background: var(--surface2);
+}
+
+.ic-back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .ic-btn {
   display: inline-flex;
   align-items: center;

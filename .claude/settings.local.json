@@ -17,7 +17,9 @@
       "Bash(echo \"--- web exit: $? ---\")",
       "Bash(echo \"--- api build exit: $? ---\")",
       "Bash(echo \"--- web build exit: $? ---\")",
-      "Bash(echo \"--- exit: $? ---\")"
+      "Bash(echo \"--- exit: $? ---\")",
+      "Bash(sed '1s/## ADDED Requirements//')",
+      "Read(//tmp/**)"
     ]
   }
 }

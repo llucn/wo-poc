@@ -6,9 +6,13 @@
 
 - Table: `t_issue_category`
 - Columns: `id` (int, auto-increment, PK), `name` (varchar(255), unique), `display_name` (varchar(255), unique)
-- Two pages: an `All Issue Categories` list (no pagination) with `+ Add` / `- Delete` buttons, and an `Add Category` form with live duplicate-name checks.
+- Four pages:
+  - `All Issue Categories` list (no pagination) with `+ Add` / `- Delete` buttons.
+  - `Add Category` form with live duplicate-name checks and a kebab-case format check on `Name`.
+  - `Category Detail` read-only view (`ID`, `Name`, `Display Name`) with an `Edit` button.
+  - `Edit Category` form: `ID` and `Name` are read-only; `Display Name` is editable with the same live duplicate check.
 - Menu entry: `Settings → Issue Category` (the `Settings` group already exists in the demo sidebar seed with placeholder children).
-- **Role gate**: both pages are restricted to users with the `ADMIN` role.
+- **Role gate**: all four pages are restricted to users with the `ADMIN` role.
 
 User roles are managed in the Cognito user pool as **Cognito groups**. The access token issued by Cognito carries the user's group membership as the `cognito:groups` claim (a JSON array of group names). The existing `JwtAuthGuard` already verifies access tokens and attaches the decoded claims to `request.user.accessClaims`, but does not yet surface the groups as a typed first-class field.
 
@@ -30,7 +34,7 @@ The web side already has the patterns we need: `useApiFetch()` (`packages/web/sr
 **Non-Goals:**
 
 - A migrations framework (TypeORM CLI / Prisma / Flyway). We have one table and one schema file; introducing a migration tool now is premature. A separate change will introduce one when we have a second table that needs to evolve in production.
-- Editing an existing category. The spec only asks for list/add/delete. A future change can add `PATCH /api/issue-categories/:id` and an Edit page.
+- Editing a category's `name`. The `Name` field is the stable identifier used by future work-order features to reference a category; renaming it would break references and is therefore prohibited at the API layer (`PATCH` only accepts `displayName`) and at the UI layer (the Edit form renders `Name` as read-only). A separate change can introduce a rename + reference-update flow if a real need appears.
 - Pagination, search, filtering, or sorting beyond the default-by-id order. The spec explicitly says "no pagination".
 - Soft-delete, audit columns (`created_at` / `updated_at` / `created_by`), or change history. The two-column schema in `docs/category.md` is honored exactly.
 - A full RBAC matrix (roles × permissions × resources). The role check this change adds is a simple "is the caller a member of group X?" test — adequate for `ADMIN`-only pages, and easy to extend later if we ever need permission strings.
@@ -161,13 +165,23 @@ The public API surface (rooted at `/api/issue-categories`):
 | Method | Path                                  | Body / Query                                  | Response                                          | Status codes                |
 | ------ | ------------------------------------- | --------------------------------------------- | ------------------------------------------------- | --------------------------- |
 | GET    | `/api/issue-categories`               | —                                             | `IssueCategoryDto[]` (ordered by id ASC)          | 200                         |
-| POST   | `/api/issue-categories`               | `{ name: string, displayName: string }`       | `IssueCategoryDto` of the created row             | 201, 400 (validation), 409 (dup) |
+| GET    | `/api/issue-categories/:id`           | —                                             | `IssueCategoryDto`                                | 200, 404 (not found)        |
+| POST   | `/api/issue-categories`               | `{ name: string, displayName: string }`       | `IssueCategoryDto` of the created row             | 201, 400 (validation / kebab-case), 409 (dup) |
+| PATCH  | `/api/issue-categories/:id`           | `{ displayName: string }`                     | `IssueCategoryDto` of the updated row             | 200, 400 (validation), 404 (not found), 409 (dup) |
 | DELETE | `/api/issue-categories`               | `{ ids: number[] }`                           | `{ deleted: number }`                             | 200, 400 (empty array)      |
 | GET    | `/api/issue-categories/exists`        | `?name=…&displayName=…` (both optional)       | `{ name: boolean, displayName: boolean }`         | 200                         |
 
 `IssueCategoryDto = { id: number; name: string; displayName: string }`. We expose `displayName` (camelCase) on the wire even though the column is `display_name` — the entity's `@Column({ name: 'display_name' })` decorator handles the mapping. The API contract belongs to TypeScript, not to MySQL's naming convention.
 
-Validation uses `class-validator` decorators on the request DTOs (`@IsString()`, `@MaxLength(255)`, `@IsArray()`, `@ArrayMinSize(1)`). The global `ValidationPipe` is added in `main.ts` so unknown / malformed bodies get a 400 with field-level messages.
+Validation uses `class-validator` decorators on the request DTOs:
+
+- `CreateIssueCategoryDto`: `@IsString() @MaxLength(255) @Matches(KEBAB_CASE_REGEX) name!: string`, `@IsString() @MaxLength(255) displayName!: string`.
+- `UpdateIssueCategoryDto`: `@IsString() @MaxLength(255) displayName!: string`. Note: `name` is **not** part of this DTO. Any client that sends `name` in the body will hit `forbidNonWhitelisted: true` in the global `ValidationPipe` and receive a 400 — this is the deliberate, stronger version of "name is immutable post-creation".
+- `DeleteIssueCategoriesDto`: `@IsArray() @ArrayMinSize(1) @IsInt({ each: true }) ids!: number[]`.
+
+The shared kebab-case regex lives in `packages/api/src/app/issue-category/kebab-case.ts` and is duplicated by name (not imported) on the web side at `packages/web/src/app/pages/issue-category/kebab-case.ts`. The two files share the same regex literal and the same exported helper `isKebabCase(value: string): boolean`. We duplicate rather than introduce a shared Nx library because (a) the rule is one regex, (b) introducing a shared `@wo-poc/shared` library for a five-line file would be premature, and (c) the API regex is the source of truth — the form check is a UX nicety, and the API enforces the contract.
+
+The global `ValidationPipe` is enabled in `main.ts` with `{ whitelist: true, forbidNonWhitelisted: true, transform: true }` so unknown / malformed bodies get a 400 with field-level messages — see also decision 14 below for the kebab-case rule.
 
 ### 6. Duplicate detection: explicit pre-check endpoint AND database UNIQUE constraint
 
@@ -181,17 +195,19 @@ Why not rely on the UNIQUE constraint alone? Mapping driver-level errors to user
 
 ### 7. Web routing and pages
 
-Two new routes are added to `packages/web/src/app/app.tsx`, before the catch-all `*`:
+Four new routes are added to `packages/web/src/app/app.tsx`, before the catch-all `*`. The order matters because React Router matches segment-by-segment and the literal `new` would otherwise be captured by `:id` — `new` is declared first, then the parametric routes:
 
 - `/settings/issue-category` → `<IssueCategoryListPage />`
 - `/settings/issue-category/new` → `<IssueCategoryAddPage />`
-
-We deliberately do **not** introduce a router param like `/settings/issue-category/:id/edit` — the spec has no edit page, and we follow YAGNI.
+- `/settings/issue-category/:id` → `<IssueCategoryDetailPage />`
+- `/settings/issue-category/:id/edit` → `<IssueCategoryEditPage />`
 
 The pages live under `packages/web/src/app/pages/issue-category/`:
 
-- `list-page.tsx` — loads via `apiFetch('/issue-categories')` on mount; renders a table with a header-row checkbox (select all), a row checkbox, `#<id>`, `Name`, `Display Name`. The `+ Add` button calls `navigate('/settings/issue-category/new')`. The `- Delete` button is disabled while no rows are selected; clicking it opens a centered confirmation dialog with the literal text `Delete categories?` plus `Cancel` / `Delete` buttons. Confirm posts `DELETE /api/issue-categories` with the selected ids and reloads the list.
-- `add-page.tsx` — controlled form with two text inputs. Each input is debounced 300 ms; after the debounce, the form calls `/issue-categories/exists` for that field and shows an inline error if `true`. `Save` is disabled while either field is empty, while either has a duplicate error, or while a check is in-flight. Saving posts `POST /api/issue-categories`; on success, navigate back to `/settings/issue-category`. `Cancel` navigates back without saving.
+- `list-page.tsx` — loads via `apiFetch('/issue-categories')` on mount; renders a table with a header-row checkbox (select all), a row checkbox, `#<id>`, `Name`, `Display Name`. The `Name` cell is rendered as a `<Link to={\`/settings/issue-category/${id}\`}>` so clicking it opens the Detail page. The `+ Add` button calls `navigate('/settings/issue-category/new')`. The `- Delete` button is disabled while no rows are selected; clicking it opens a centered confirmation dialog with the literal text `Delete categories?` plus `Cancel` / `Delete` buttons. Confirm posts `DELETE /api/issue-categories` with the selected ids and reloads the list.
+- `add-page.tsx` — controlled form with two text inputs. The page header shows a borderless left-arrow back button (see decision 15) to the left of the title that calls `navigate('/settings/issue-category')`. Each input is debounced 300 ms; after the debounce, the form calls `/issue-categories/exists` for that field and shows an inline `Already exists` error if `true`. The `Name` field additionally runs `isKebabCase(value)` on every keystroke (no debounce — this is a pure-function check) and shows an inline `Name must be kebab-case` error when invalid. The kebab-case error takes precedence over the duplicate error so users fix format first, then conflict. `Save` is disabled while either field is empty, while either has a duplicate error, while `Name` has a kebab-case error, or while a check is in-flight. Saving posts `POST /api/issue-categories`; on success, navigate back to `/settings/issue-category`. `Cancel` navigates back without saving.
+- `detail-page.tsx` — loads via `apiFetch('/issue-categories/${id}')` on mount; renders the page title equal to the category's `name`, and a read-only display of `ID` (`#<id>`), `Name`, and `Display Name`. The page header shows a borderless left-arrow back button (see decision 15) to the left of the title that calls `navigate('/settings/issue-category')`. Provides an `Edit` button that calls `navigate('/settings/issue-category/${id}/edit')`. If the API returns 404 the page renders a `Category not found` placeholder rather than the read-only view, so a deleted-from-another-tab id does not throw an unhandled error.
+- `edit-page.tsx` — loads via `apiFetch('/issue-categories/${id}')` on mount and renders three fields: `ID` (`#<id>`, read-only), `Name` (read-only text matching the existing value), and `Display Name` (controlled text input, prefilled with the existing value, debounced 300 ms for the duplicate check). The page header shows a borderless left-arrow back button (see decision 15) to the left of the title that calls `navigate('/settings/issue-category/${id}')` — the back button takes the user one level up to the Detail page, NOT to the list. The duplicate check on `Display Name` MUST treat the current row's own `displayName` as not-a-conflict so editing without changing the field doesn't show a false error; the check helper compares the trimmed value against the original and only calls the API when the value has actually changed. `Save` is disabled while the field is empty, while it has a duplicate error, while a check is in-flight, or while the PATCH is in flight. Saving posts `PATCH /api/issue-categories/${id}` with `{ displayName }`; on success, navigate back to `/settings/issue-category/${id}`. `Cancel` navigates back to the Detail page without saving.
 
 State stays local — `useState` + `useEffect`, no global store, no react-query — matching the existing `profile-page.tsx` pattern.
 
@@ -207,10 +223,11 @@ The `Profile` and `Preferences` entries stay (they are still demo placeholders t
 
 ### 9. Error model and HTTP semantics
 
-- `400 Bad Request`: validation failure on body shape. Nest's `ValidationPipe` produces the response.
+- `400 Bad Request`: validation failure on body shape (including the kebab-case rule on `Name` and the `forbidNonWhitelisted` rejection if a `PATCH` body contains `name`). Nest's `ValidationPipe` produces the response.
 - `401 Unauthorized`: produced by the existing global `JwtAuthGuard` — no Issue Category code knows about auth at all.
 - `403 Forbidden`: produced by the new global `RolesGuard` when the caller is authenticated but does not have a required group (`@Roles('ADMIN')`). The body has the standard Nest shape `{ statusCode: 403, message: 'Forbidden resource', error: 'Forbidden' }`.
-- `409 Conflict`: returned by both `POST` and `DELETE` (when an id does not exist? — see below) and shaped as `{ statusCode: 409, message: '<reason>', field?: 'name' | 'displayName', value?: string }`.
+- `404 Not Found`: returned by `GET /api/issue-categories/:id` and `PATCH /api/issue-categories/:id` when no row matches the supplied id. The body has the standard Nest shape with `message: 'Category <id> not found'`. We deliberately use 404 (not 410) because a deleted row is indistinguishable from one that never existed at the application layer.
+- `409 Conflict`: returned by `POST` (on `name` or `displayName` collision) and `PATCH` (on `displayName` collision, since `name` is not patchable) and shaped as `{ statusCode: 409, message: '<reason>', field?: 'name' | 'displayName', value?: string }`.
 - `200 OK` on `DELETE /api/issue-categories` returns `{ deleted: <count> }`. If the user submits ids that don't exist, those ids are silently ignored — the `deleted` count tells the truth. We do **not** return 404 for missing ids; bulk delete semantics treat the operation as "best effort, count what landed".
 
 ### 10. Configuration boot order
@@ -325,11 +342,119 @@ The two category routes in `app.tsx` wrap their elements in `<RequireRole role="
 
 This is UX, not security. The API would refuse the call anyway. But "401 in the inspector with no UI feedback" is a worse experience than "a clear page that says you don't have access".
 
+### 14. Kebab-case rule on `Name`, and why `Name` is immutable post-creation
+
+`docs/category.md` requires the `Name` field to be **kebab-case**: lowercase ASCII letters, digits, and hyphens; the value must start and end with an alphanumeric character; consecutive hyphens are not allowed. The canonical regex is:
+
+```ts
+// packages/api/src/app/issue-category/kebab-case.ts
+export const KEBAB_CASE_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export function isKebabCase(value: string): boolean {
+  return KEBAB_CASE_REGEX.test(value);
+}
+```
+
+The same regex literal is duplicated at `packages/web/src/app/pages/issue-category/kebab-case.ts` (see decision 5 for why we duplicate rather than introduce a shared library). The API is the source of truth: a request that bypasses the form (e.g. `curl`) still fails 400 on the API DTO's `@Matches(KEBAB_CASE_REGEX)` validator. The form check is purely a UX improvement so the user sees the error before clicking `Save`.
+
+**Why `Name` is immutable post-creation.** The `Name` field is intended to be the stable, machine-friendly identifier that future work-order features will use to reference a category (e.g. as a foreign-key-like value in form definitions, in URLs, in scripts). Renaming a category would silently break every existing reference. We therefore:
+
+1. Render `Name` as read-only on the Edit page (no input, just display).
+2. Define `UpdateIssueCategoryDto` with only `displayName` so the API has no surface that accepts a new `name` for an existing row.
+3. Rely on the global `ValidationPipe`'s `forbidNonWhitelisted: true` to reject any `PATCH` body containing `name` with a 400 — defense in depth in case a client sends `name` anyway.
+
+If a real need for renaming appears later, that becomes a separate change with explicit reference-tracking and a coordinated update path; we do not pay the design cost speculatively here.
+
+**Why kebab-case specifically?** It is the lowest-friction shape for an identifier that needs to appear in URLs, environment variables, file paths, and config keys without escaping. The alternative — accepting arbitrary strings and url-encoding when needed — leaks the encoding concern into every consumer.
+
+### 15. Back button: shared component, per-page navigation target, no browser-history fallback
+
+`docs/category.md` adds an explicit back button to the headers of the `Add Category`, `Category Detail`, and `Edit Category` pages. The button is described as: borderless, with a left-arrow icon, placed to the left of the page title. It must navigate to a specific page per the spec — not to "the previous page in the browser history".
+
+**Per-page targets:**
+
+| Page             | Back button navigates to             |
+| ---------------- | ------------------------------------ |
+| Add Category     | `/settings/issue-category` (list)    |
+| Category Detail  | `/settings/issue-category` (list)    |
+| Edit Category    | `/settings/issue-category/:id` (Detail) |
+
+The Edit page deliberately goes one level up to its Detail page, NOT to the list. This matches the visual hierarchy of the routes (`/settings/issue-category/:id/edit` is "inside" `/settings/issue-category/:id`) and lets a user edit-then-back to confirm the saved value before returning to the list.
+
+**Why fixed targets, not `navigate(-1)`?** Using `history.back()` makes the back button's behavior depend on how the user arrived. Examples that get the wrong outcome:
+
+- The user opens `/settings/issue-category/7/edit` from a bookmark or a typed URL — `navigate(-1)` would take them to whatever page they were on before opening the SPA, which has nothing to do with this page's hierarchy.
+- The user navigates list → detail → edit, then the Save action does `navigate('/settings/issue-category/7')` — the next "back" via history would jump to the edit page they just left, not the list.
+
+The fixed-target rule makes the button's effect predictable: it always means "one level up in the route hierarchy I am looking at right now", regardless of how I got here.
+
+**Implementation: a shared `<BackButton to={path} />` component.** The button appears in three places with the same look and only the navigation target varies. A shared component keeps the markup, ARIA semantics, and styling in one place:
+
+```tsx
+// packages/web/src/app/pages/issue-category/back-button.tsx
+type Props = { to: string };
+
+export function BackButton({ to }: Props) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      className="ic-back-btn"
+      aria-label="Back"
+      onClick={() => navigate(to)}
+    >
+      ←
+    </button>
+  );
+}
+```
+
+We use a Unicode left-arrow glyph (`←`, U+2190) rather than an SVG so the project does not need to introduce an icon system for one button. The character renders consistently across browsers and respects the surrounding font size. Accessibility is preserved by an explicit `aria-label="Back"` so screen readers announce the button's intent rather than the arrow glyph.
+
+**Styling: a new `.ic-back-btn` class in `styles.css`.** Borderless, transparent background, matches the surrounding header's typography:
+
+```css
+.ic-back-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ic-back-btn:hover {
+  background: var(--surface-hover);
+}
+.ic-back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+```
+
+**Header layout: button left of title via flex row.** The existing `.ic-page-header` is already a flex row with `space-between`, with the title on one side and any action buttons on the other. To put the back button to the left of the title without disturbing that, we wrap the title and back button in a single flex container that occupies the left slot:
+
+```tsx
+<header className="ic-page-header">
+  <div className="ic-page-title-group">
+    <BackButton to="..." />
+    <h1 className="ic-page-title">...</h1>
+  </div>
+  {/* right slot: action buttons (Edit / Save / Cancel / etc.) */}
+</header>
+```
+
+A new `.ic-page-title-group { display: flex; align-items: center; gap: 8px; }` rule keeps the back button visually associated with the title without losing the right-slot action area.
+
+**The List page does not get a back button.** It is the top of this section's hierarchy — there is no "up". The sidebar is the way back to other parts of the app.
+
 ## Risks / Trade-offs
 
 - **Risk**: The bootstrap SQL diverges from the entity decorators as more columns are added. → **Mitigation**: `synchronize: false` so TypeORM never silently rewrites the table. Every column change requires editing `docs/database.sql`, which a code review will catch. When the schema gets a second table, we will move from a hand-written SQL file to a real migration tool (separate change).
 - **Risk**: `mysql2` is added without a connection pool tuning step. → **Mitigation**: TypeORM's defaults (pool size 10, 60 s acquire timeout) are appropriate for this POC. Future load testing will tune `extra.connectionLimit`.
-- **Risk**: The duplicate-check endpoint is racy under concurrent admins — two tabs can both pre-check, both see `false`, both POST, one wins on the UNIQUE constraint. → **Mitigation**: the `POST` handler catches MySQL's `ER_DUP_ENTRY` (error code 1062) and re-maps it to the same 409 response shape the pre-check informs. The user experience degrades from "live inline error" to "submit then error", which is acceptable for a settings page used by one admin at a time.
+- **Risk**: The duplicate-check endpoint is racy under concurrent admins — two tabs can both pre-check, both see `false`, both POST, one wins on the UNIQUE constraint. → **Mitigation**: the `POST` and `PATCH` handlers catch MySQL's `ER_DUP_ENTRY` (error code 1062) and re-map it to the same 409 response shape the pre-check informs. The user experience degrades from "live inline error" to "submit then error", which is acceptable for a settings page used by one admin at a time.
+- **Risk**: The kebab-case regex is duplicated on the web and API sides; if one drifts the other becomes wrong. → **Mitigation**: the regex literal is identical (`/^[a-z0-9]+(?:-[a-z0-9]+)*$/`), the helper name is identical (`isKebabCase`), and the API is the source of truth (a bad form gate just shows or hides an error a millisecond earlier than the server would). The cost of the duplication is one regex; the cost of a shared library (new Nx project, new tsconfig path, new build step) is high. Revisit if a third place ever needs the rule.
+- **Risk**: A user copies a category in another tab while an Edit form has stale data; saving overwrites with the older `displayName`. → **Mitigation**: the `PATCH` endpoint returns 409 on a `displayName` collision; the Edit page handles 409 the same way the Add page does (renders an inline error). We deliberately do **not** add optimistic-concurrency tokens (`ETag` / `If-Match`) — the table has two editable bytes effectively (a single string), and the cost of an `ETag` round trip outweighs the cost of "the last save wins and the user sees the new value on next load". Revisit if we ever add fields where lost updates matter.
 - **Risk**: `DB_PASSWORD` in `.env.example` is the literal string `wo`, which a developer might assume is the production credential. → **Mitigation**: `.env.example` is local-dev-only by convention; `.env` is git-ignored. The README task in `tasks.md` will state that no production credentials live in this repo.
 - **Risk**: A developer runs `docs/database.sql` against a production database. → **Mitigation**: the script uses `IF NOT EXISTS` so it is idempotent and creates a database literally named `wo_poc` — production databases would have a different name. The script is documented as a local-dev bootstrap, not a deployment artifact.
 - **Risk**: `class-validator` and `class-transformer` are not yet in the workspace, so adding validation pipelines requires two new runtime deps. → **Mitigation**: both are tiny, widely used, and are the standard Nest validation pair documented in the official Nest validation chapter. Worth the dep cost for the 400-response quality alone.
@@ -339,7 +464,7 @@ This is UX, not security. The API would refuse the call anyway. But "401 in the 
 - **Risk**: Client-side JWT decode (`atob`) misbehaves on a malformed token. → **Mitigation**: the `decodeJwtPayload` helper wraps in `try/catch` and the `useUserGroups` hook returns `[]` on any failure. A failure means the user has no roles, which is the safe default (UI hides the entry, route shows 403). The API would also reject any actual call with a malformed token.
 - **Trade-off**: TypeORM adds ~1 MB to the API bundle and a non-trivial decorator surface. Acceptable: it replaces ~300 lines of hand-rolled SQL repository code that we would otherwise own. For a workspace that will accumulate persistence features, the floor (per-feature code) drops fast.
 - **Trade-off**: We are not using a migrations framework. Acceptable while the schema is one file; revisit at the second table.
-- **Trade-off**: We do not implement edit on the categories page. Acceptable: matches `docs/category.md` exactly. A future change can add it without breaking any API contract.
+- **Trade-off**: `Name` cannot be edited. Acceptable: a deliberate design decision (see decision 14) that prevents silent breakage of references from future work-order features. A future change can introduce a rename + reference-update flow if needed.
 - **Trade-off**: We chose group-membership-as-role over a richer permission model (e.g. `categories:read`, `categories:write`). Acceptable for this scale; revisit if the role surface gets complex enough that "is-ADMIN" no longer fits.
 
 ## Migration Plan
@@ -360,3 +485,5 @@ This is UX, not security. The API would refuse the call anyway. But "401 in the 
 - Should the Delete confirmation dialog show the count of selected rows (e.g. `Delete 3 categories?`)? `docs/category.md` says the text is exactly `Delete categories?`. We honor the literal text; if a future review wants the count, it's a one-line change.
 - The `Settings` group in the sidebar currently has two demo children (`Profile`, `Preferences`). Once Issue Category lands as the first real child, should the demo children be removed? Out of scope here; a follow-up change can prune the demo entries once each gets a real replacement.
 - Should the `403` page offer a "request access" CTA (e.g. a `mailto:` to the workspace admin)? Not in scope here; we render a static placeholder. Easy to enhance later without changing the role-check contract.
+- `docs/category.md` says the Category Detail page's title is `name`. We render the category's `name` literally (e.g. `hardware`). If a future review prefers the more user-friendly `displayName` (e.g. `Hardware`) for the page title — or both, separated by a dash — that is a one-line change. We follow the spec literally for now.
+- Should the kebab-case regex also forbid leading digits (e.g. `1-hardware`)? `docs/category.md` does not say. We allow them today (`/^[a-z0-9]+(?:-[a-z0-9]+)*$/` accepts `1-hardware`) because URL-style slugs commonly do. If a future review wants letter-first identifiers, the regex changes to `/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/` in two places.

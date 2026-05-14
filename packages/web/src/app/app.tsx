@@ -3,6 +3,8 @@ import { RequireAuth } from './auth/require-auth';
 import { RequireRole } from './auth/require-role';
 import { DemoPage } from './pages/demo-page';
 import { IssueCategoryAddPage } from './pages/issue-category/add-page';
+import { IssueCategoryDetailPage } from './pages/issue-category/detail-page';
+import { IssueCategoryEditPage } from './pages/issue-category/edit-page';
 import { IssueCategoryListPage } from './pages/issue-category/list-page';
 import { ProfilePage } from './pages/profile-page';
 import { AppShell } from './shell/app-shell';
@@ -34,6 +36,22 @@ export function App() {
             element={
               <RequireRole role="ADMIN">
                 <IssueCategoryAddPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/issue-category/:id"
+            element={
+              <RequireRole role="ADMIN">
+                <IssueCategoryDetailPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/issue-category/:id/edit"
+            element={
+              <RequireRole role="ADMIN">
+                <IssueCategoryEditPage />
               </RequireRole>
             }
           />

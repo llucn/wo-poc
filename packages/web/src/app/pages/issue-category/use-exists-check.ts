@@ -4,6 +4,13 @@ import type { ExistsResponse } from './types';
 
 type Field = 'name' | 'displayName';
 
+type Options = {
+  // When the trimmed input value equals this string the check is skipped
+  // and `exists` is reported as false. Used by the Edit page so leaving a
+  // value unchanged does not flag the row's own value as a duplicate.
+  ignoreValue?: string;
+};
+
 type CheckState = {
   checking: boolean;
   exists: boolean | null;
@@ -14,14 +21,23 @@ const INITIAL: CheckState = { checking: false, exists: null, error: null };
 
 const DEBOUNCE_MS = 300;
 
-export function useExistsCheck(field: Field, value: string): CheckState {
+export function useExistsCheck(
+  field: Field,
+  value: string,
+  options: Options = {},
+): CheckState {
   const apiFetch = useApiFetch();
   const [state, setState] = useState<CheckState>(INITIAL);
+  const ignoreValue = options.ignoreValue;
 
   useEffect(() => {
     const trimmed = value.trim();
     if (trimmed === '') {
       setState(INITIAL);
+      return;
+    }
+    if (ignoreValue !== undefined && trimmed === ignoreValue.trim()) {
+      setState({ checking: false, exists: false, error: null });
       return;
     }
 
@@ -45,7 +61,7 @@ export function useExistsCheck(field: Field, value: string): CheckState {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [apiFetch, field, value]);
+  }, [apiFetch, field, value, ignoreValue]);
 
   return state;
 }

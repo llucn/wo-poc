@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError, useApiFetch } from '../../auth/use-api-fetch';
+import { BackButton } from './back-button';
+import { isKebabCase } from './kebab-case';
 import type { ConflictResponse, IssueCategoryDto } from './types';
 import { useExistsCheck } from './use-exists-check';
 
@@ -15,11 +17,15 @@ export function IssueCategoryAddPage() {
     { field: 'name' | 'displayName'; value: string } | null
   >(null);
 
-  const nameCheck = useExistsCheck('name', name);
-  const displayNameCheck = useExistsCheck('displayName', displayName);
-
   const nameTrimmed = name.trim();
   const displayNameTrimmed = displayName.trim();
+  const nameFormatError = nameTrimmed.length > 0 && !isKebabCase(nameTrimmed);
+
+  // Suppress the duplicate check while the format is invalid — checking
+  // existence of a value that the API would reject with 400 is wasted work.
+  const nameCheck = useExistsCheck('name', nameFormatError ? '' : name);
+  const displayNameCheck = useExistsCheck('displayName', displayName);
+
   const nameDup =
     nameCheck.exists === true ||
     (serverDup?.field === 'name' && serverDup.value === nameTrimmed);
@@ -31,6 +37,7 @@ export function IssueCategoryAddPage() {
     submitting ||
     nameTrimmed === '' ||
     displayNameTrimmed === '' ||
+    nameFormatError ||
     nameDup ||
     displayNameDup ||
     nameCheck.checking ||
@@ -74,7 +81,10 @@ export function IssueCategoryAddPage() {
   return (
     <section className="ic-page">
       <header className="ic-page-header">
-        <h1 className="ic-page-title">Add Category</h1>
+        <div className="ic-page-title-group">
+          <BackButton to="/settings/issue-category" />
+          <h1 className="ic-page-title">Add Issue Category</h1>
+        </div>
       </header>
       <form className="ic-form" onSubmit={onSubmit} noValidate>
         <div className="ic-field">
@@ -84,7 +94,7 @@ export function IssueCategoryAddPage() {
           <input
             id="ic-name"
             type="text"
-            className={`ic-input${nameDup ? ' has-error' : ''}`}
+            className={`ic-input${nameFormatError || nameDup ? ' has-error' : ''}`}
             value={name}
             maxLength={255}
             onChange={(e) => {
@@ -94,11 +104,15 @@ export function IssueCategoryAddPage() {
             disabled={submitting}
             autoComplete="off"
           />
-          {nameDup && (
+          {nameFormatError ? (
+            <p className="ic-field-error" role="alert">
+              Name must be kebab-case (lowercase letters, digits, hyphens)
+            </p>
+          ) : nameDup ? (
             <p className="ic-field-error" role="alert">
               Already exists
             </p>
-          )}
+          ) : null}
         </div>
         <div className="ic-field">
           <label className="ic-field-label" htmlFor="ic-display-name">

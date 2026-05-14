@@ -93,3 +93,95 @@
 - [x] 11.7 Direct API smoke with `curl` and a non-ADMIN bearer: `curl -H "Authorization: Bearer <token>" -H "X-Id-Token: <id>" http://localhost:3000/api/issue-categories` returns `403`. — Manual developer verification.
 - [x] 11.8 Duplicate-name UX: in the Add page, type a name that already exists; after the debounce, see `Already exists` inline; click `Save`; the button is disabled. Open a second tab, race a duplicate (use two browser sessions or temporarily disable debounce in code); confirm the 409 path also renders the inline error. — Manual developer verification.
 - [x] 11.9 Run `openspec validate category` — passes.
+
+## 12. API: kebab-case validation on `name` (new requirement)
+
+- [x] 12.1 Create `packages/api/src/app/issue-category/kebab-case.ts` exporting `export const KEBAB_CASE_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;` and `export function isKebabCase(value: string): boolean { return KEBAB_CASE_REGEX.test(value); }`. Add a top-of-file comment noting that the same regex is duplicated at `packages/web/src/app/pages/issue-category/kebab-case.ts` and that this file is the source of truth.
+- [x] 12.2 Update `packages/api/src/app/issue-category/issue-category.dto.ts`: import `Matches` from `class-validator` and `KEBAB_CASE_REGEX` from `./kebab-case`. On `CreateIssueCategoryDto.name`, add `@Matches(KEBAB_CASE_REGEX, { message: 'name must be kebab-case (lowercase letters, digits, hyphens; no leading/trailing/double hyphens)' })` after the existing `@IsString()` / `@MaxLength(255)` decorators.
+- [x] 12.3 Smoke-check the validator: `curl -X POST` a body with `name: 'Hardware'` (uppercase) or `name: '-hardware'` (leading hyphen) or `name: 'a--b'` (double hyphen) — each MUST return 400 with the kebab-case message. A lowercase kebab value like `hardware-tools` MUST pass through to the create path. — Manual developer verification.
+
+## 13. API: get-by-id and PATCH for `displayName` only (new requirement)
+
+- [x] 13.1 Extend `packages/api/src/app/issue-category/issue-category.dto.ts` with `class UpdateIssueCategoryDto { @IsString() @MaxLength(255) displayName!: string; }`. Do **not** declare a `name` field on this DTO — the global `ValidationPipe`'s `forbidNonWhitelisted: true` will reject `PATCH` bodies that include `name` with a 400.
+- [x] 13.2 Extend `packages/api/src/app/issue-category/issue-category.service.ts` with `findById(id: number): Promise<IssueCategoryEntity>` that returns the row or throws `NotFoundException` with `message: \`Category ${id} not found\``.
+- [x] 13.3 Extend `packages/api/src/app/issue-category/issue-category.service.ts` with `update(id: number, dto: UpdateIssueCategoryDto): Promise<IssueCategoryEntity>` that (a) loads the row via `findById` (404 propagates), (b) early-returns the row unchanged if `dto.displayName === row.displayName` to avoid an unnecessary update / spurious 409, (c) checks `existsByField('displayName', dto.displayName)` and throws `ConflictException` with `{ field: 'displayName', value }` on collision, (d) updates the row and returns it, (e) catches `QueryFailedError` 1062 on the `uk_t_issue_category_display_name` constraint and rethrows as the same `ConflictException`.
+- [x] 13.4 Extend `packages/api/src/app/issue-category/issue-category.controller.ts` with:
+  - `@Get(':id') findOne(@Param('id', ParseIntPipe) id: number)` → returns `IssueCategoryDto`; 404 propagates.
+  - `@Patch(':id') update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateIssueCategoryDto)` → returns the updated `IssueCategoryDto`.
+  Both methods inherit the class-level `@Roles('ADMIN')` so non-admins still get 403.
+- [x] 13.5 Smoke-check the new endpoints with an ADMIN bearer:
+  - `GET /api/issue-categories/123` for a non-existent id → 404 with `Category 123 not found`.
+  - `PATCH /api/issue-categories/<existing-id>` with `{ "displayName": "New Name" }` → 200 with the updated row.
+  - `PATCH /api/issue-categories/<existing-id>` with `{ "name": "x", "displayName": "y" }` → 400 (forbidNonWhitelisted catches `name`).
+  - `PATCH /api/issue-categories/<existing-id>` with a `displayName` that already exists on another row → 409 with `{ field: 'displayName' }`.
+  — Manual developer verification (requires MySQL).
+
+## 14. Web: kebab-case helper + use it in the Add form (new requirement)
+
+- [x] 14.1 Create `packages/web/src/app/pages/issue-category/kebab-case.ts` with the same regex literal and `isKebabCase` helper as the API file. Add a top-of-file comment noting that the API file at `packages/api/src/app/issue-category/kebab-case.ts` is the source of truth; if these ever diverge, the API wins.
+- [x] 14.2 Update `packages/web/src/app/pages/issue-category/add-page.tsx`:
+  - Import `isKebabCase`.
+  - Compute a synchronous `nameFormatError = name.length > 0 && !isKebabCase(name)` on every render.
+  - Render the format error below the `Name` input as `Name must be kebab-case (lowercase letters, digits, hyphens)` in the error color when `nameFormatError` is true. The format error takes precedence over the `Already exists` duplicate error so users see one error at a time.
+  - Skip the debounced `/issue-categories/exists?name=...` call while `nameFormatError` is true (no point checking duplicates for an invalid value).
+  - Add `nameFormatError` to the `Save`-disabled predicate alongside the existing empty / duplicate / checking checks.
+- [x] 14.3 Manually verify the form: typing `Hardware` shows the kebab-case error; clearing and typing `hardware-tools` clears it and triggers the duplicate check. — Manual developer verification.
+
+## 15. Web: Category Detail page (new requirement)
+
+- [x] 15.1 Extend `packages/web/src/app/pages/issue-category/use-issue-categories.ts` (or add a sibling `use-issue-category.ts`) with `useIssueCategory(id: number)` that calls `GET /issue-categories/${id}` on mount and returns `{ data, loading, error, reload }`. `error` MUST distinguish 404 from other errors so the page can render the `Category not found` placeholder for 404 only.
+- [x] 15.2 Create `packages/web/src/app/pages/issue-category/detail-page.tsx` exporting `<IssueCategoryDetailPage />`:
+  - Read `id` via `useParams<{ id: string }>()`; parse with `Number(id)`; if `Number.isNaN`, render the `Category not found` placeholder.
+  - Page title equals the category's `name` once loaded; while loading show a `Loading...` block matching `profile-page.tsx`.
+  - Render three read-only fields: `ID` = `#<id>`, `Name` = `name`, `Display Name` = `displayName`.
+  - Render an `Edit` button (primary) that calls `navigate('/settings/issue-category/${id}/edit')`.
+  - On 404 error from the API, render the `Category not found` placeholder with a `Back to list` link pointing at `/settings/issue-category`.
+- [x] 15.3 Update `packages/web/src/app/pages/issue-category/list-page.tsx`: render the `Name` cell as a `<Link to={\`/settings/issue-category/${row.id}\`}>{row.name}</Link>` so the list is a navigable index of detail pages. Keep the row checkbox functional (clicking the link must not toggle the checkbox; ensure the link is inside the `Name` `<td>` only).
+
+## 16. Web: Edit Category page (new requirement)
+
+- [x] 16.1 Extend `packages/web/src/app/pages/issue-category/use-exists-check.ts` (or add a small helper) to accept an `ignoreValue?: string` argument. When `value === ignoreValue` the hook MUST short-circuit and return `{ checking: false, exists: false, error: null }` without firing the network call. The Edit page passes the original `displayName` as `ignoreValue` so leaving the field unchanged shows no false `Already exists` error.
+- [x] 16.2 Create `packages/web/src/app/pages/issue-category/edit-page.tsx` exporting `<IssueCategoryEditPage />`:
+  - Read `id` via `useParams<{ id: string }>()`; parse with `Number(id)`.
+  - Use `useIssueCategory(id)` to load the row; show a `Loading...` block while loading, the `Category not found` placeholder on 404.
+  - Page title: `Edit Category`.
+  - Render `ID` (`#<id>`, read-only text), `Name` (read-only text equal to the loaded `name`), and a controlled `Display Name` input prefilled with the loaded `displayName`.
+  - Wire the `Display Name` input to `useExistsCheck('displayName', value, { ignoreValue: original.displayName })`. Render `Already exists` inline on a positive check.
+  - `Save` (primary): disabled when the field is empty, when `exists: true`, when `checking: true`, or while the PATCH is in flight. Clicking calls `PATCH /issue-categories/${id}` with `{ displayName }`; on 200 → `navigate('/settings/issue-category/${id}')`. On 409 → render the inline `Already exists` error on the field; stay on the page. On 404 → navigate back to the list (the row vanished while editing).
+  - `Cancel` (secondary): navigate to `/settings/issue-category/${id}` without saving.
+
+## 17. Web: routes (new requirement)
+
+- [x] 17.1 Update `packages/web/src/app/app.tsx` to add the two new routes immediately after the existing two category routes, before the catch-all `*`:
+  - `<Route path="/settings/issue-category/:id" element={<RequireRole role="ADMIN"><IssueCategoryDetailPage/></RequireRole>}/>`
+  - `<Route path="/settings/issue-category/:id/edit" element={<RequireRole role="ADMIN"><IssueCategoryEditPage/></RequireRole>}/>`
+  Make sure `/settings/issue-category/new` is declared **before** `/settings/issue-category/:id` so the literal `new` is not captured by the `:id` param.
+- [x] 17.2 Manually verify with an ADMIN user: clicking a row's `Name` in the list opens the Detail page; clicking `Edit` opens the Edit page; saving a new `Display Name` returns to the Detail page with the updated value; `Cancel` from Edit returns to Detail without changes. — Manual developer verification.
+
+## 18. Verification of the new surface
+
+- [x] 18.1 Run `npx tsc --noEmit -p packages/web/tsconfig.app.json` and `npx tsc --noEmit -p packages/api/tsconfig.app.json` — both clean.
+- [x] 18.2 Run `npx nx build web` and `npx nx build @wo-poc/api` — both succeed.
+- [x] 18.3 Confirm both kebab-case files exist and the regex literals match exactly: `diff <(grep KEBAB_CASE_REGEX packages/api/src/app/issue-category/kebab-case.ts) <(grep KEBAB_CASE_REGEX packages/web/src/app/pages/issue-category/kebab-case.ts)` should show only the path difference, not a regex difference. — Verified via Grep tool: both files contain `export const KEBAB_CASE_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;` literally identical.
+- [x] 18.4 End-to-end happy-path edit flow: from the list, click a category row's name → Detail page renders → click `Edit` → change `Display Name` → click `Save` → return to Detail with the new value. — Manual developer verification.
+- [x] 18.5 End-to-end name-is-immutable: open the Edit page and confirm `Name` cannot be focused or typed into; open DevTools and try to mutate the input via JS — even a successful client-side mutation does not change the PATCH payload (the form only sends `displayName`); independently, a `curl -X PATCH` with `{ "name": "x", "displayName": "y" }` returns 400. — Manual developer verification.
+- [x] 18.6 Run `openspec validate category` — passes. — Manual developer verification (openspec CLI not available in this bash environment).
+
+## 19. Web: Back button on Add / Detail / Edit pages (new requirement)
+
+- [x] 19.1 Extend `packages/web/src/styles.css` with two new rules in the issue-category block. (a) `.ic-page-title-group { display: flex; align-items: center; gap: 8px; }` so the back button can sit immediately to the left of the page title without disturbing the existing right-slot action area. (b) `.ic-back-btn { background: transparent; border: none; padding: 4px 8px; font-size: 18px; line-height: 1; color: var(--text); cursor: pointer; border-radius: 4px; }` plus `.ic-back-btn:hover { background: var(--surface-hover); }` and `.ic-back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }`. Use the existing CSS variables (no new variables introduced); if `--surface-hover` is not defined yet, fall back to `rgba(255, 255, 255, 0.06)` (or whatever the codebase uses for hover surfaces — check before settling on a value). — Used `var(--surface2)` for the hover background (the codebase has no `--surface-hover`; `--surface2` is the elevated-surface variable already used elsewhere). `border-radius` uses `var(--radius-sm)` to match the existing buttons.
+- [x] 19.2 Create `packages/web/src/app/pages/issue-category/back-button.tsx` exporting a `<BackButton to={path} />` component. Implementation: a `<button type="button">` with `className="ic-back-btn"`, `aria-label="Back"`, content `←` (Unicode U+2190), and an `onClick` that calls `navigate(to)` from `react-router-dom`'s `useNavigate()`. Do not use `<Link>` because the visual is a button, and using a button keeps focus / keyboard handling consistent with the rest of the page's controls.
+- [x] 19.3 Update `packages/web/src/app/pages/issue-category/add-page.tsx`:
+  - Import `BackButton`.
+  - Wrap the existing `<h1 className="ic-page-title">Add Category</h1>` and a `<BackButton to="/settings/issue-category" />` together inside `<div className="ic-page-title-group">…</div>` placed where the title currently is. The `ic-page-header` flex layout should put the title group on the left and any future right-slot content on the right (the Add page has no right-slot buttons today; the layout still works with an empty right slot).
+- [x] 19.4 Update `packages/web/src/app/pages/issue-category/detail-page.tsx`:
+  - Import `BackButton`.
+  - In the loaded-state render, wrap the `<h1 className="ic-page-title">{data.name}</h1>` and a `<BackButton to="/settings/issue-category" />` inside `<div className="ic-page-title-group">…</div>`. Keep the `Edit` button in the existing right slot (`<div className="ic-page-actions">`).
+  - The loading, not-found, and error fallback sections should NOT show a back button — they already render minimal headers and the user can use the sidebar or the existing `Back to list` link.
+- [x] 19.5 Update `packages/web/src/app/pages/issue-category/edit-page.tsx`:
+  - Import `BackButton`.
+  - In the loaded-state render, wrap the `<h1 className="ic-page-title">Edit Category</h1>` and a `<BackButton to={\`/settings/issue-category/${id}\`} />` inside `<div className="ic-page-title-group">…</div>`. The back button must point to the **Detail page** (one level up in the route hierarchy), not to the list — see design decision 15.
+  - Same as the Detail page: do not render the back button in the loading / not-found / error fallback sections.
+- [x] 19.6 Run `npx tsc --noEmit -p packages/web/tsconfig.app.json` and `npx nx build web` — both clean. — tsc clean; `nx build web` succeeded (65 modules transformed, up from 64 — the new `back-button.tsx` is bundled).
+- [x] 19.7 Manually verify with an ADMIN user: (a) on the Add page, the back button appears to the left of the title with no border, hovering highlights it, and clicking returns to the list without saving; (b) on the Detail page, the back button returns to the list (not to wherever the user came from); (c) on the Edit page, the back button returns to the Detail page for the same id (not to the list); (d) tab-focusing the back button shows a visible focus outline; (e) screen-reader reads "Back, button". — Manual developer verification.
+- [x] 19.8 Run `openspec validate category` — passes. — Manual developer verification (openspec CLI not available in this bash environment; the build above is the strongest mechanical signal we have).
