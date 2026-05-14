@@ -593,6 +593,258 @@ button {
 }
 
 /* ============================================================
+ * Issue Category pages (list, add) and shared dialog primitives
+ * ============================================================ */
+.ic-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+}
+
+.ic-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ic-page-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.ic-page-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ic-page-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ic-back-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 10px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.ic-back-btn:hover {
+  background: var(--surface2);
+}
+
+.ic-back-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.ic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.ic-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ic-btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.ic-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ic-btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border-hi);
+}
+
+.ic-btn-secondary:hover:not(:disabled) {
+  background: var(--hover-subtle);
+}
+
+.ic-btn-danger {
+  background: var(--red);
+  color: #fff;
+}
+
+.ic-btn-danger:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.ic-table-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ic-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ic-table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted2);
+  background: var(--card-head-bg);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ic-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.ic-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ic-col-check {
+  width: 40px;
+}
+
+.ic-col-id {
+  width: 80px;
+  font-family: var(--font-mono);
+  color: var(--muted2);
+}
+
+.ic-table-empty {
+  padding: 24px 14px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.ic-error-block {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--red-dim);
+  color: var(--red);
+  font-size: 13px;
+}
+
+.ic-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  max-width: 480px;
+}
+
+.ic-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ic-field-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted2);
+}
+
+.ic-input {
+  padding: 8px 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.ic-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.ic-input.has-error {
+  border-color: var(--red);
+}
+
+.ic-field-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 12px;
+}
+
+.ic-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ic-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.ic-modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 20px;
+  min-width: 320px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ic-modal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ic-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ============================================================
  * Drawer mode (viewport < 1024px): sidebar overlays the page.
  * Docked mode is the default — sidebar is a flex child of
  * .app-layout and remains visible alongside the content.

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useUserGroups } from '../auth/use-user-groups';
 import { DEMO_MENU, type MenuItem } from './menu-config';
 
 type Props = {
@@ -8,8 +9,28 @@ type Props = {
   onNavigate: () => void;
 };
 
+function filterMenuByRoles(items: MenuItem[], groups: string[]): MenuItem[] {
+  const result: MenuItem[] = [];
+  for (const item of items) {
+    if (item.roles && item.roles.length > 0) {
+      const allowed = item.roles.some((role) => groups.includes(role));
+      if (!allowed) continue;
+    }
+    if (item.children && item.children.length > 0) {
+      const filteredChildren = filterMenuByRoles(item.children, groups);
+      if (filteredChildren.length === 0) continue;
+      result.push({ ...item, children: filteredChildren });
+    } else {
+      result.push(item);
+    }
+  }
+  return result;
+}
+
 export function Sidebar({ isNarrow, open, onNavigate }: Props) {
   const className = `sidebar${isNarrow && open ? ' open' : ''}`;
+  const groups = useUserGroups();
+  const menu = useMemo(() => filterMenuByRoles(DEMO_MENU, groups), [groups]);
   return (
     <aside className={className} aria-label="Main navigation">
       <div className="sidebar-logo">
@@ -19,7 +40,7 @@ export function Sidebar({ isNarrow, open, onNavigate }: Props) {
         </div>
       </div>
       <nav className="nav">
-        {DEMO_MENU.map((group) => (
+        {menu.map((group) => (
           <SidebarGroup
             key={group.id}
             item={group}

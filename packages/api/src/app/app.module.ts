@@ -5,7 +5,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { RolesGuard } from './auth/roles.guard';
 import { loadAppConfig } from './config/app-config';
+import { DatabaseModule } from './database/database.module';
+import { IssueCategoryModule } from './issue-category/issue-category.module';
 import { MeModule } from './me/me.module';
 
 @Module({
@@ -15,13 +18,16 @@ import { MeModule } from './me/me.module';
       load: [loadAppConfig],
       envFilePath: '.env',
     }),
+    DatabaseModule,
     AuthModule,
     MeModule,
+    IssueCategoryModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}

@@ -3,7 +3,7 @@
  * This is only a minimal backend to get started.
  */
 
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app/app.module';
@@ -13,6 +13,13 @@ async function bootstrap() {
   const globalPrefix = 'api';
   app.setGlobalPrefix(globalPrefix);
   app.enableCors({ origin: true });
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT') ?? 3000;
   await app.listen(port);

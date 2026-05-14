@@ -5,6 +5,7 @@ export type CurrentUserPayload = {
   userName: string;
   phoneNumber: string | null;
   email: string | null;
+  groups: string[];
   accessClaims: Record<string, unknown>;
   idClaims: Record<string, unknown>;
 };
