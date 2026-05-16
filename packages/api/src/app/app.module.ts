@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { loadAppConfig } from './config/app-config';
 import { DatabaseModule } from './database/database.module';
+import { FieldModule } from './field/field.module';
 import { IssueCategoryModule } from './issue-category/issue-category.module';
 import { MeModule } from './me/me.module';
 
@@ -22,6 +23,7 @@ import { MeModule } from './me/me.module';
     AuthModule,
     MeModule,
     IssueCategoryModule,
+    FieldModule,
   ],
   controllers: [AppController],
   providers: [

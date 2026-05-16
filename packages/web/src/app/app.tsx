@@ -2,6 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { RequireAuth } from './auth/require-auth';
 import { RequireRole } from './auth/require-role';
 import { DemoPage } from './pages/demo-page';
+import { FieldAddPage } from './pages/field/add-page';
+import { FieldDetailPage } from './pages/field/detail-page';
+import { FieldEditPage } from './pages/field/edit-page';
+import { FieldListPage } from './pages/field/list-page';
 import { IssueCategoryAddPage } from './pages/issue-category/add-page';
 import { IssueCategoryDetailPage } from './pages/issue-category/detail-page';
 import { IssueCategoryEditPage } from './pages/issue-category/edit-page';
@@ -52,6 +56,38 @@ export function App() {
             element={
               <RequireRole role="ADMIN">
                 <IssueCategoryEditPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/field"
+            element={
+              <RequireRole role="ADMIN">
+                <FieldListPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/field/new"
+            element={
+              <RequireRole role="ADMIN">
+                <FieldAddPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/field/:id"
+            element={
+              <RequireRole role="ADMIN">
+                <FieldDetailPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/field/:id/edit"
+            element={
+              <RequireRole role="ADMIN">
+                <FieldEditPage />
               </RequireRole>
             }
           />

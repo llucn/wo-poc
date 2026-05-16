@@ -2,9 +2,10 @@ type Props = {
   onCancel: () => void;
   onConfirm: () => void;
   busy?: boolean;
+  message?: string;
 };
 
-export function ConfirmDeleteDialog({ onCancel, onConfirm, busy }: Props) {
+export function ConfirmDeleteDialog({ onCancel, onConfirm, busy, message = 'Delete categories?' }: Props) {
   return (
     <div
       className="ic-modal-overlay"
@@ -20,7 +21,7 @@ export function ConfirmDeleteDialog({ onCancel, onConfirm, busy }: Props) {
         aria-labelledby="ic-delete-title"
       >
         <h2 id="ic-delete-title" className="ic-modal-title">
-          Delete categories?
+          {message}
         </h2>
         <div className="ic-modal-actions">
           <button
