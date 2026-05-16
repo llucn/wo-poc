@@ -12,3 +12,20 @@ CREATE TABLE IF NOT EXISTS t_issue_category (
   UNIQUE KEY uk_t_issue_category_name (name),
   UNIQUE KEY uk_t_issue_category_display_name (display_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS t_field (
+  id            INT          NOT NULL AUTO_INCREMENT,
+  name          VARCHAR(255) NOT NULL,
+  title         VARCHAR(255) NOT NULL,
+  description   TEXT         NULL,
+  required      INT          NOT NULL DEFAULT 0,
+  default_value TEXT         NULL,
+  type          VARCHAR(64)  NOT NULL,
+  properties    TEXT         NULL,
+  created_on    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_by    VARCHAR(255) NOT NULL,
+  updated_on    TIMESTAMP    NULL     DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  updated_by    VARCHAR(255) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_t_field_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

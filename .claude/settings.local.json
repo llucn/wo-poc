@@ -19,7 +19,8 @@
       "Bash(echo \"--- web build exit: $? ---\")",
       "Bash(echo \"--- exit: $? ---\")",
       "Bash(sed '1s/## ADDED Requirements//')",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(grep -v \"^archive$\")"
     ]
   }
 }
