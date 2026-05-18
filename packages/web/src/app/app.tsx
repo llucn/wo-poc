@@ -6,6 +6,11 @@ import { FieldAddPage } from './pages/field/add-page';
 import { FieldDetailPage } from './pages/field/detail-page';
 import { FieldEditPage } from './pages/field/edit-page';
 import { FieldListPage } from './pages/field/list-page';
+import { FormAddPage } from './pages/form/add-page';
+import { FormDesignPage } from './pages/form/design-page';
+import { FormDetailPage } from './pages/form/detail-page';
+import { FormEditPage } from './pages/form/edit-page';
+import { FormListPage } from './pages/form/list-page';
 import { IssueCategoryAddPage } from './pages/issue-category/add-page';
 import { IssueCategoryDetailPage } from './pages/issue-category/detail-page';
 import { IssueCategoryEditPage } from './pages/issue-category/edit-page';
@@ -88,6 +93,46 @@ export function App() {
             element={
               <RequireRole role="ADMIN">
                 <FieldEditPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/form"
+            element={
+              <RequireRole role="ADMIN">
+                <FormListPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/form/new"
+            element={
+              <RequireRole role="ADMIN">
+                <FormAddPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/form/:id"
+            element={
+              <RequireRole role="ADMIN">
+                <FormDetailPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/form/:id/edit"
+            element={
+              <RequireRole role="ADMIN">
+                <FormEditPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/settings/form/:id/design"
+            element={
+              <RequireRole role="ADMIN">
+                <FormDesignPage />
               </RequireRole>
             }
           />
