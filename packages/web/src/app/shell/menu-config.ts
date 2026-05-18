@@ -48,6 +48,7 @@ export const DEMO_MENU: MenuItem[] = [
     children: [
       { id: 'settings-issue-category', label: 'Issue Category', to: '/settings/issue-category', roles: ['ADMIN'] },
       { id: 'settings-field', label: 'Field', to: '/settings/field', roles: ['ADMIN'] },
+      { id: 'settings-form', label: 'Form', to: '/settings/form', roles: ['ADMIN'] },
       { id: 'settings-profile', label: 'Profile', to: '/settings/profile' },
       { id: 'settings-preferences', label: 'Preferences', to: '/settings/preferences' },
     ],
